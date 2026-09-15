@@ -9,10 +9,17 @@ logger = structlog.get_logger(__name__)
 
 
 class SpacesUploadError(Exception):
+    """Raised when a Parquet upload to DO Spaces fails after all retries."""
     pass
 
 
 class SpacesClient:
+    """Thin wrapper around boto3's S3 client configured for DO Spaces.
+
+    DO Spaces is S3-API-compatible, so boto3 works as-is with a custom
+    endpoint_url pointing at the Spaces region endpoint.
+    """
+
     def __init__(self) -> None:
         self._client = boto3.client(
             "s3",
@@ -23,6 +30,16 @@ class SpacesClient:
         )
 
     async def upload_parquet_bytes(self, data: bytes, key: str) -> None:
+        """Upload raw Parquet bytes to DO Spaces at the given key.
+
+        Retries up to MAX_FLUSH_RETRIES times with exponential backoff
+        (1s, 2s, 4s, ...). Raises SpacesUploadError only after all retries
+        are exhausted — the flush worker catches this and re-buffers the
+        affected events rather than dropping them.
+
+        The boto3 call is offloaded to a thread executor because boto3 is
+        synchronous and would block the event loop otherwise.
+        """
         last_exc: Exception | None = None
         for attempt in range(1, settings.MAX_FLUSH_RETRIES + 1):
             try:
@@ -53,4 +70,5 @@ class SpacesClient:
         )
 
 
+# Module-level singleton used by the flush worker.
 spaces_client = SpacesClient()

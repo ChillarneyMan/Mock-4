@@ -4,7 +4,7 @@ import tempfile
 import pytest
 import pyarrow as pa
 import pyarrow.parquet as pq
-from datetime import datetime, timezone
+from datetime import datetime, date, timezone
 from httpx import AsyncClient, ASGITransport
 
 from app.main import app
@@ -102,12 +102,17 @@ def test_pagination(client):
     )
 
 
-def test_stats_grouped_by_event_type(client):
+def test_stats_grouped_by_event_type_and_date(client):
     qc, glob = client
     stats = qc.get_event_stats(None, None, parquet_glob=glob)
-    by_type = {r["event_type"]: r["count"] for r in stats}
-    assert by_type["page_view"] == 4  # 3 on jan15 + 1 on jan16
-    assert by_type["click"] == 2
+    # Stats are now grouped by (event_type, date) — one row per combination.
+    # page_view appears on jan15 (3 events) and jan16 (1 event).
+    # click appears only on jan15 (2 events).
+    # DuckDB returns the Hive partition 'date' column as datetime.date objects.
+    by_key = {(r["event_type"], r["date"]): r["count"] for r in stats}
+    assert by_key[("page_view", date(2024, 1, 15))] == 3
+    assert by_key[("page_view", date(2024, 1, 16))] == 1
+    assert by_key[("click", date(2024, 1, 15))] == 2
 
 
 def test_stats_time_range_filter(client):
@@ -116,9 +121,10 @@ def test_stats_time_range_filter(client):
     start = datetime(2024, 1, 15, tzinfo=timezone.utc)
     end = datetime(2024, 1, 15, 23, 59, 59, tzinfo=timezone.utc)
     stats = qc.get_event_stats(start, end, parquet_glob=glob)
-    by_type = {r["event_type"]: r["count"] for r in stats}
-    assert by_type["page_view"] == 3  # jan16 excluded
-    assert by_type["click"] == 2
+    by_key = {(r["event_type"], r["date"]): r["count"] for r in stats}
+    assert by_key[("page_view", date(2024, 1, 15))] == 3  # jan16 excluded
+    assert by_key[("click", date(2024, 1, 15))] == 2
+    assert ("page_view", date(2024, 1, 16)) not in by_key
 
 
 def test_no_data_returns_empty_list():
