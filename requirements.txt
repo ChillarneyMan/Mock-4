@@ -1,2 +1,12 @@
 fastapi
 uvicorn[standard]
+pydantic
+pydantic-settings
+structlog
+duckdb
+boto3
+pyarrow
+pytest
+pytest-asyncio
+pytest-cov
+httpx

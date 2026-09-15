@@ -1,0 +1,65 @@
+name: event-service
+region: nyc
+
+services:
+  - name: api
+    dockerfile_path: Dockerfile
+    http_port: 8080
+    instance_size_slug: basic-xxs
+    instance_count: 1
+
+    # Autoscaling is disabled for this demo.
+    # To enable for production, add:
+    #   autoscaling:
+    #     min_instance_count: 1
+    #     max_instance_count: 5
+    #     metrics:
+    #       - type: CPU
+    #         percent: 70
+
+    health_check:
+      http_path: /health
+      initial_delay_seconds: 10
+      period_seconds: 15
+      timeout_seconds: 5
+      success_threshold: 1
+      failure_threshold: 3
+
+    envs:
+      # --- Secrets: values must be set via the DO control panel or doctl ---
+      - key: DO_SPACES_KEY
+        scope: RUN_TIME
+        type: SECRET
+
+      - key: DO_SPACES_SECRET
+        scope: RUN_TIME
+        type: SECRET
+
+      # --- Non-secret config: defaults provided here ---
+      - key: DO_SPACES_ENDPOINT
+        scope: RUN_TIME
+        value: https://nyc3.digitaloceanspaces.com
+
+      - key: DO_SPACES_BUCKET
+        scope: RUN_TIME
+        value: newbuck
+
+      - key: DO_SPACES_REGION
+        scope: RUN_TIME
+        value: nyc3
+
+      - key: BUFFER_FLUSH_INTERVAL_SECONDS
+        scope: RUN_TIME
+        value: "30"
+
+      - key: BUFFER_MAX_SIZE
+        scope: RUN_TIME
+        value: "5000"
+
+      - key: MAX_FLUSH_RETRIES
+        scope: RUN_TIME
+        value: "3"
+
+      - key: LOG_LEVEL
+        scope: RUN_TIME
+        value: INFO
